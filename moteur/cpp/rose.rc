@@ -1,3 +1,3 @@
 // Ressource icone pour rose-win64.exe (Windows Explorer / association .rose).
 // Compilee par build-win64.sh (windres ou zig rc) et liee a rose-win64.exe.
-IDI_ICON1 ICON "../../installateur/assets/rose.ico"
+IDI_ICON1 ICON "../../installateur/assets/setup.ico"
