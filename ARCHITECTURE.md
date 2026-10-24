@@ -374,3 +374,53 @@ reste l'outil secondaire).
 - Les dorés, la parité et les suites restent la vérité pendant toute
   la migration : à chaque jalon, `tester.sh` (et `tester.ps1` sur
   Windows) doit être vert.
+
+## Stratégies de continuation (après M4.5) et bénéfices concrets
+
+Rose n'est pas un clone de C++ : le moteur C++ est l'**amorce** (le
+stage0 à la Rust), pas le produit final. La vitesse vient du JIT déjà en
+production (M2) et viendra du backend LLVM (M3) ; le C++ n'est que le
+hôte transitoire.
+
+### Ce que M4.4/M4.5 ont débloqué concrètement
+
+- **Auto-émission octet-identique** : le compilateur écrit en Rose émet
+  du C++ identique au caractère près à l'émetteur C++. La preuve de
+  parité (`emetteur_cpp.py` 39/39) devient le contrat de non-régression
+  du compilateur auto-hébergé, pas seulement du moteur.
+- **Corrections de codegen** (comparaisons mixtes flottant/entier,
+  décalage de labels) : le code généré par le compilateur auto-hébergé
+  est désormais correct et exécutable, ce qui permet d'enchaîner sur M5
+  (bibliothèque standard compilée par le moteur auto-hébergé) sans
+  masquer des bugs dans le C++ émis.
+- **Bootstrap crédible** : la chaîne `rose-1` (compilé par C++) →
+  `rose-2` (compilé par rose-1) peut être comparée octet par octet ;
+  c'est la porte d'entrée vers un compilateur indépendant de C++.
+
+### Stratégies de continuation
+
+1. **M5 — bibliothèque standard auto-hébergée** : compiler
+   `prelude.rose` avec le moteur auto-hébergé, puis migrer les helpers
+   runtime C++ vers des modules Rose. Bénéfice : la stdlib devient du
+   code Rose testable par la parité, pas du C++ caché.
+2. **Point fixe de bootstrap** : valider `rose-1` ≡ `rose-2` (taille et
+   octets). Bénéfice : sortie définitive de la dépendance au compilateur
+   C++ pour le produit.
+3. **Backend LLVM (M3)** : émettre du LLVM IR depuis le RIR, avec les
+   passes d'optimisation, pour des binaires natifs aussi rapides que
+   Rust/Zig. Bénéfice : vitesse maximale sans réécrire le langage.
+4. **Performance ciblée** : bignum natif (`rose_mpz`/`rose_mpq`),
+   constantes partagées par module, JIT pour l'interactif, LLVM pour les
+   bundles. Bénéfice : gains mesurables (`PERF.md`) sans sacrifier
+   l'exactitude.
+5. **Cosmétique/packaging** : icônes (exécutable + fichiers `.rose`),
+   nom de commande et installateur NSIS. Bénéfice : présentation produit,
+   sans impact sur la sémantique.
+
+### Ce que ça n'est pas
+
+- Pas de réécriture du langage en C++ : le C++ reste l'amorce jusqu'au
+  point fixe, puis est retiré de la livraison.
+- Pas de dépendance d'exécution : le contrat « binaire autonome » reste
+  intact (JIT/LLVM compilent, n'ajoutent pas de runtime au programme).
+

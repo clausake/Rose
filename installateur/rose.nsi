@@ -107,6 +107,9 @@ Section "Moteur Rose" SecMoteur
   File "staging\rose-win64.exe"                  ; → rose.exe
   Rename "rose-win64.exe" "${EXE_NAME}"
   File "assets\rose.ico"                          ; icône des fichiers .rose
+  File "assets\\setup.ico"                          ; icône de l'exécutable Rose
+  Rename "setup.ico" "rose_app.ico"
+
 
   SetOutPath "$INSTDIR"
   File /nonfatal "staging\README-PARTAGE.md"
@@ -129,7 +132,7 @@ Section "Moteur Rose" SecMoteur
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "${APP_PUBLISHER}"
-  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\bin\${EXE_NAME}"
+  WriteRegStr HKCU "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\bin\rose_app.ico"
   WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
