@@ -67,9 +67,16 @@ echo "== Étape 2 : moteur C++ → rose-win64.exe =="
 # suppose un g+++GMP cible — ces deux unités restent hors du build Windows ;
 # le bourrage rend rose_jit_compile inoffensif (repli interpréteur) et
 # « rose build » en rejet poli. Le moteur est C++20 depuis M2.x.
+# Compilation de la ressource icone (rose.res) si un compilateur RC est dispo.
+RES_FILE=""
+if command -v x86_64-w64-mingw32-windres >/dev/null 2>&1; then
+  ( cd "$RACINE/cpp" && x86_64-w64-mingw32-windres rose.rc -O coff -o rose.res ) && RES_FILE="rose.res"
+elif "$ZIG" rc --help >/dev/null 2>&1; then
+  ( cd "$RACINE/cpp" && "$ZIG" rc rose.rc -o rose.res ) && RES_FILE="rose.res"
+fi
 ( cd "$RACINE/cpp"
   "$ZIG" c++ -target "$CIBLE" -O2 -std=c++20 -I "$GMP_WIN/include" \
-      src/rose.cpp src/jit_win_stub.cpp "$GMP_WIN_OBJ/libgmp-win.a" -static -o rose-win64.exe )
+      src/rose.cpp src/jit_win_stub.cpp ${RES_FILE} "$GMP_WIN_OBJ/libgmp-win.a" -static -o rose-win64.exe )
 file cpp/rose-win64.exe 2>/dev/null || file "$RACINE/cpp/rose-win64.exe"
 
 echo "== Étape 3 : moteur Zig → rose-zig-win64.exe =="
