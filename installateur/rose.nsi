@@ -103,6 +103,8 @@ Section "Moteur Rose" SecMoteur
   SectionIn RO
   StrCpy $BinDir "$INSTDIR\bin"
 
+  CreateDirectory "$INSTDIR"
+  CreateDirectory "$INSTDIR\bin"
   SetOutPath "$INSTDIR\bin"
   File "staging\rose-win64.exe"                  ; → rose.exe
   Rename "rose-win64.exe" "${EXE_NAME}"
@@ -140,6 +142,11 @@ Section "Moteur Rose" SecMoteur
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
 
+  ; rafraichir le cache d icones Windows
+  Delete "$LOCALAPPDATA\IconCache.db"
+  Delete "$LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db"
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+
   Call AjoutPath
   WriteUninstaller "$INSTDIR\uninstall.exe"
 SectionEnd
@@ -147,6 +154,11 @@ SectionEnd
 Section "Uninstall"
   StrCpy $BinDir "$INSTDIR\bin"
   Call un.RetraitPath
+
+  ; rafraichir le cache d icones Windows
+  Delete "$LOCALAPPDATA\IconCache.db"
+  Delete "$LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*.db"
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 
   DeleteRegKey HKCU "Software\Classes\.rose"
   DeleteRegKey HKCU "Software\Classes\Rose.File"
