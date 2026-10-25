@@ -4591,6 +4591,7 @@ static const char *USAGE =
     "Usage :\n"
     "  rose prog.rose            interpréter un programme Rose\n"
     "  rose run prog.rose        interpréter (identique)\n"
+    "  rose build prog.rose [-o sortie] [--llvm]  compiler natif (C++ ou LLVM IR)\n"
     "  rose comp prog.rose [-o sortie]   produire un exécutable autonome\n"
     "  rose rir prog.rose             dumper la représentation intermédiaire (RIR)\n"
     "  rose info                 état du moteur et des dépendances\n"
@@ -4770,9 +4771,12 @@ int main(int argc, char **argv) {
     }
     if (action == "build") {
         std::string sortie;
+        bool use_llvm = false;
         for (int i = 2; i < argc; i++) {
             if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--sortie")) {
                 if (i + 1 < argc) sortie = argv[++i];
+            } else if (!strcmp(argv[i], "--llvm") || !strcmp(argv[i], "-llvm")) {
+                use_llvm = true;
             } else if (argv[i][0] != '-') fichier = argv[i];
         }
         if (fichier.empty()) { fprintf(stderr, "rose: quel programme compiler ?\n"); return 1; }
@@ -4846,14 +4850,33 @@ int main(int argc, char **argv) {
         const char *cfl = getenv("ROSE_CXXFLAGS");
         std::string flags = (cfl && *cfl) ? cfl : "-O3 -march=native";
         const char *gmp = getenv("ROSE_GMP");
-        std::string cmd = std::string(cxx) + " " + flags + " -std=c++17" +
-                          " -I" + entete_rep +
-                          (gmp && *gmp ? " -I" + std::string(gmp) + "/include -L" + std::string(gmp) + "/lib" : "") +
-                          " " + cpp_file + " " + runtime +
-                          " -o " + sortie + " -lgmp -lgmpxx -lm -lpthread 2>&1";
-        fprintf(stderr, "rose build: %s\n", cmd.c_str());
-        int r = system(cmd.c_str());
-        if (r == 0) fprintf(stderr, "rose: %s produit (compilé natif)\n", sortie.c_str());
+        std::string gmp_flags = (gmp && *gmp) ? (" -I" + std::string(gmp) + "/include -L" + std::string(gmp) + "/lib") : "";
+        std::string ll_file = sortie + ".ll";
+        int r = 1;
+        if (use_llvm) {
+            const char *clangbin = getenv("ROSE_CLANG"); if (!clangbin || !*clangbin) clangbin = "clang++";
+            std::string cmd_ll = std::string(clangbin) + " -S -emit-llvm " + flags + " -std=c++17" +
+                                 " -I" + entete_rep + gmp_flags +
+                                 " " + cpp_file + " -o " + ll_file + " 2>&1";
+            fprintf(stderr, "rose llvm: %s\n", cmd_ll.c_str());
+            r = system(cmd_ll.c_str());
+            if (r != 0) { fprintf(stderr, "rose: emission LLVM IR échouée\n"); return 1; }
+            std::string cmd = std::string(clangbin) + " " + flags + " -std=c++17" +
+                              " " + ll_file + " " + runtime +
+                              " -I" + entete_rep + gmp_flags +
+                              " -o " + sortie + " -lgmp -lgmpxx -lm -lpthread 2>&1";
+            fprintf(stderr, "rose llvm: %s\n", cmd.c_str());
+            r = system(cmd.c_str());
+            if (r == 0) fprintf(stderr, "rose: %s produit (LLVM IR : %s)\\n", sortie.c_str(), ll_file.c_str());
+        } else {
+            std::string cmd = std::string(cxx) + " " + flags + " -std=c++17" +
+                              " -I" + entete_rep + gmp_flags +
+                              " " + cpp_file + " " + runtime +
+                              " -o " + sortie + " -lgmp -lgmpxx -lm -lpthread 2>&1";
+            fprintf(stderr, "rose build: %s\n", cmd.c_str());
+            r = system(cmd.c_str());
+            if (r == 0) fprintf(stderr, "rose: %s produit (compilé natif)\\n", sortie.c_str());
+        }
         return r == 0 ? 0 : 1;
     }
     /* premier argument = fichier .rose sans sous-commande */
