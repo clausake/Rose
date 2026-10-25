@@ -41,6 +41,41 @@ LLVM IR. À n'engager que si un gain ≥ 10 % est mesuré sur le banc.
 ## Structure
 
 - `perf/` : variantes C++ du banc pour expérimentation.
-- `mlir/` : squelettes MLIR (textuels) pour exploration.
-EOF
-echo done
+- `mlir/` : squelettes MLIR (textuels) + pipeline automatisé pour exploration.
+
+## MLIR : statut (mis à jour)
+
+MLIR **est maintenant installé** (libmlir-18-dev + mlir-18-tools, via extraction
+sans sudo si besoin : voir `mlir/build.sh`).
+
+Pipeline validé (ARM64, LLVM 18.1.3) :
+
+```
+mlir-opt-18  input.mlir --convert-scf-to-cf --convert-cf-to-llvm \
+             --convert-arith-to-llvm --finalize-memref-to-llvm \
+             --convert-func-to-llvm --reconcile-unrealized-casts -o lowered.mlir
+mlir-translate-18 --mlir-to-llvmir lowered.mlir -o out.ll
+clang -O3 out.ll driver.c -o bench
+```
+
+Résultat clé : en exprimant la boucle de tirage comme `scf.for` dont l'état
+RNG est une variable SSA (au lieu d'un global), LLVM **entrelace automatiquement
+les 4 chaînes de splitmix64** (2 tirages par itération, stores groupés `stp`)
+et le banc passe de ~41 ms (Rose AOT) à **~4 ms** sur 100 M (gain ~10×).
+
+Le levier n'est donc pas MLIR lui-même mais la forme SSA de la boucle, qui
+permet à l'optimiseur d'interleaver les chaînes de dépendance. À reproduire
+dans le moteur : rendre `rose_rng_tirer` / `rose_remplir_hasard` SSA-friendly
+(état explicite) plutôt que global, ou émettre l'IR LLVM dans cette forme.
+
+Outils (sans sudo) :
+
+```bash
+cd rose_labs/mlir
+./build.sh            # extrait mlir-18-tools si absent, puis compile
+```
+
+Fichiers :
+- `mlir/remplir_hasard_std.mlir` : boucle `scf.for` + splitmix64 (dialectes standard)
+- `mlir/driver.c` : driver de banc
+- `mlir/build.sh` : pipeline automatisé

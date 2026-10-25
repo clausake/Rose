@@ -24,4 +24,3 @@ module {
 // Pipeline visée :
 //   rose dialect -> (lowering) scf/memref/arith -> (convert) LLVM dialect
 //   -> mlir-translate --mlir-to-llvmir -> .ll -> clang -O3
-EOF

@@ -1,0 +1,6 @@
+# Artefacts de build et outils extraits (sans sudo)
+.tools/
+build/
+*.o
+*.ll
+*.mlir.lowered
