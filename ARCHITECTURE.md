@@ -258,6 +258,37 @@ L'IR commune (M1) rend les deux non exclusifs — c'est l'ordre qui
 change : JIT d'abord (M2) car il garde le binaire autonome et sert le
 bootstrap ; LLVM ensuite (M3) pour la puissance de publication.
 
+## LLVM + MLIR : pour dépasser Rust et C++ ?
+
+Réponse courte : **LLVM IR (M3) donne la parité**, MLIR n'est un
+accélérateur que pour des **domaines ciblés** — pas un bouton magique
+« dépasser Rust/C++ ».
+
+- Rust et C++ passent déjà par LLVM IR (rustc → LLVM, clang → LLVM). Émettre
+  du LLVM IR depuis le RIR (M3) met Rose au **même niveau** que ces deux
+  langages, avec les mêmes optimiseurs mondiaux. C'est le gain réel et
+  mesurable : retirer le coût fixe de l'interpréteur (~15 ms sur le banc
+  mot de passe, 49 ms → ~34 ms) et activer l'inlining/vectorisation AOT.
+- MLIR est un **cadre** pour construire des IR multi-niveaux et des passes
+  personnalisées (polyhédral, vectorisation agressive, autodiff, dialectes
+  tenseurs). Il ne bat LLVM que si Rose écrit **ses propres passes**
+  meilleures que celles de clang/rustc — un investissement lourd, justifié
+  uniquement pour un domaine précis (bignum exact, tenseurs, boucles
+  numériques). Mojo le fait pour l'IA avec des dialectes dédiés.
+- Pour Rose (langage généraliste, maths exactes), la stratégie est donc :
+  1. **M3 — LLVM IR** d'abord : parité avec Rust/C++, suppression de
+     l'overhead interpréteur, publication native.
+  2. **M3+ — MLIR optionnel** : seulement si un domaine (bignum `rose_mpz`,
+     boucles vectorisées) montre un gain mesurable au banc. Sinon, MLIR
+     ajoute ~100 Mo et de la complexité de build pour rien.
+  3. Le banc mot de passe reste la référence : Rose doit d'abord **égaliser**
+     C++ splitmix64 (34 ms) avant de viser à le dépasser, et tout gain doit
+     être prouvé par `bench/langages/bench.sh`, jamais supposé.
+
+Règle : aucune affirmation de performance sans mesure au banc ; MLIR ne
+s'ajoute au roadmap que sur preuve d'un gain ≥ 10 % sur un banc nommé.
+
+
 ## Hypothèses structurales : GMP, ABI, propriété des valeurs
 
 ### GMP : ce que le JIT touche en interne, et pourquoi c'est borné
