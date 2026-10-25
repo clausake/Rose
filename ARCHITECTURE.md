@@ -229,6 +229,16 @@ produit un binaire native (`selfb`) qui relit son propre RIR — plus de
 traducteur RIR → C++ se fabrique lui-même : le compilateur
 auto-hébergé de la ligne M4 est bouclé.
 
+### M4.5 — Point fixe de bootstrap : ✅ validé
+
+`rose-1` (compilateur.rose compilé par l'amorce C++) et `rose-2`
+(fabriqué par `rose-1`) émettent le MÊME C++ octet pour octet sur
+`rose/compilateur.rose` (porte : `moteur/tests/bootstrap/point_fixe.sh`).
+Le compilateur auto-hébergé se reproduit lui-même : sortie définitive de
+la dépendance au compilateur C++ pour le produit (l'amorce ne sert plus
+qu'au bootstrap).
+
+
 ### M5 — Standard library en Rose
 `prelude.rose` (listes, tri, chaînes, tables, tests unitaires écrits
 en Rose) compilé par le moteur auto-hébergé : le langage se décrit
@@ -403,9 +413,11 @@ hôte transitoire.
    `prelude.rose` avec le moteur auto-hébergé, puis migrer les helpers
    runtime C++ vers des modules Rose. Bénéfice : la stdlib devient du
    code Rose testable par la parité, pas du C++ caché.
-2. **Point fixe de bootstrap** : valider `rose-1` ≡ `rose-2` (taille et
-   octets). Bénéfice : sortie définitive de la dépendance au compilateur
-   C++ pour le produit.
+2. **Point fixe de bootstrap** : ✅ **validé** — `rose-1` (compilé par
+   l'amorce C++) et `rose-2` (fabriqué par `rose-1`) émettent le MÊME
+   C++ octet pour octet sur `rose/compilateur.rose`
+   (`moteur/tests/bootstrap/point_fixe.sh`, porte automatisée). Sortie
+   définitive de la dépendance au compilateur C++ pour le produit.
 3. **Backend LLVM (M3)** : émettre du LLVM IR depuis le RIR, avec les
    passes d'optimisation, pour des binaires natifs aussi rapides que
    Rust/Zig. Bénéfice : vitesse maximale sans réécrire le langage.
