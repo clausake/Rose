@@ -63,9 +63,13 @@ deviennent des appels C directs depuis le code émis ; le bundle
 > Reste : le JIT natif Windows x86-64 (la chaîne de production croisée
 > existe, le compilé AOT `rose build` le remplace avantageusement).
 
-### M3 — AOT : `rose build` (réalisé — option C++, LLVM écarté)
+### M3 — AOT : `rose build` (réalisé — option C++ par défaut, LLVM IR disponible)
 `rose build prog.rose -o prog` transpile le RIR en **C++ lisible** que
 g++‑O3 compile en binaire autonome (runtime Rose + GMP seulement).
+L'option LLVM IR est désormais disponible : `rose build prog.rose -o prog --llvm`
+émet un fichier `.ll` (LLVM IR optimisé par clang -O3) et le compile en
+binaire natif via clang ; le runtime Rose reste en C++ et LLVM optimise
+le module utilisateur (et le lien LTO avec `ROSE_CXXFLAGS=-flto`).
 L'option LLVM (API C) a été tentée puis **écartée** : même résultat,
 chaîne de production beaucoup plus lourde. Le contrat est « émettre ou
 rejeter poliment » : jamais de binaire faux ni de g++ cassé — chaque
