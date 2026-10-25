@@ -7,6 +7,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <unistd.h>
 #include <gmpxx.h>
 
 // Types runtime de Rose (transpilation AOT).
@@ -251,8 +252,20 @@ void rose_afficher_q(const rose_qd &q);
 
 // Divisions euclidiennes à la Rose (plancher, miroir de l'interprète).
 
-// Générateur pseudo-aléatoire (splitmix64, état global).
-void rose_graine(rose_int seed);
+// Générateur pseudo-aléatoire (splitmix64, état global partagé) — inlinable.
+extern uint64_t g_rng_etat;
+
+static inline uint64_t rose_rng_tirer() {
+    uint64_t z = (g_rng_etat += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
+
+static inline void rose_graine(rose_int seed) {
+    g_rng_etat = (uint64_t)seed;
+    rose_rng_tirer();
+}
 
 // Tampons d'octets.
 rose_tampon rose_tampon_new(size_t n);
@@ -260,7 +273,47 @@ rose_tampon rose_octets(const char *s);
 rose_int rose_tampon_longueur(rose_tampon buf);
 rose_int rose_tampon_case(rose_tampon buf, rose_int idx);
 void rose_tampon_pose(rose_tampon buf, rose_int idx, rose_int val);
-void rose_remplir_hasard(rose_tampon buf, rose_tampon alpha);
+char *rose_tampon_data(rose_tampon buf);
+size_t rose_tampon_size_raw(rose_tampon buf);
+static inline void rose_remplir_hasard(rose_tampon buf, rose_tampon alpha) {
+    const char *ab = alpha->data();
+    const size_t s = alpha->size();
+    if (s == 1) {
+        buf->assign(buf->size(), ab[0]);
+        return;
+    }
+    if ((s & (s - 1)) == 0 && s <= 256) {
+        const size_t m = s - 1;
+        unsigned char *p = (unsigned char *)&(*buf)[0];
+        const size_t n = buf->size();
+        size_t i = 0;
+        for (; i + 32 <= n; i += 32) {
+            uint64_t r0 = rose_rng_tirer(), r1 = rose_rng_tirer();
+            uint64_t r2 = rose_rng_tirer(), r3 = rose_rng_tirer();
+            for (int k = 0; k < 8; k++) {
+                p[i + k]      = (unsigned char)ab[(r0 >> (8 * k)) & m];
+                p[i + 8 + k]  = (unsigned char)ab[(r1 >> (8 * k)) & m];
+                p[i + 16 + k] = (unsigned char)ab[(r2 >> (8 * k)) & m];
+                p[i + 24 + k] = (unsigned char)ab[(r3 >> (8 * k)) & m];
+            }
+        }
+        for (; i < n; i++) p[i] = (unsigned char)ab[rose_rng_tirer() & m];
+    } else if ((s & (s - 1)) == 0) {
+        const size_t mask = s - 1;
+        const int bits = 64 - __builtin_clzll((unsigned long long)s);
+        const size_t per = (size_t)(64 / bits);
+        size_t i = 0;
+        for (; i + per <= buf->size(); i += per) {
+            uint64_t r = rose_rng_tirer();
+            for (size_t k = 0; k < per; k++)
+                (*buf)[i + k] = ab[(r >> (k * (size_t)bits)) & mask];
+        }
+        for (; i < buf->size(); i++) (*buf)[i] = ab[rose_rng_tirer() & mask];
+    } else {
+        for (size_t i = 0; i < buf->size(); i++)
+            (*buf)[i] = ab[(size_t)((__uint128_t)rose_rng_tirer() * s >> 64)];
+    }
+}
 
 // Arguments CLI.
 void rose_runtime_set_args(int argc, char **argv);

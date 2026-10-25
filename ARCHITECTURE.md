@@ -77,6 +77,18 @@ limite est un message nommé. À la v3.14 : 56 cas de référence, 32
 fidèles, 24 rejets polis, 0 écart, et les campagnes génératives
 (540+ programmes, trois voies) sans divergence.
 
+**M3.1 — inlining des primitives chaudes (réalisé)** : `rose_graine`,
+`rose_rng_tirer` et `rose_remplir_hasard` sont passés de fonctions
+externes (TU séparé) à `static inline` dans `rose_runtime.h`. Effet :
+le remplissage (8 octets par mot 64 bits, 4 mots par bloc de 32) est
+inliné dans le `main` généré, ce qui expose le RNG (splitmix64) à LLVM
+comme un état local promouvable en registre et laisse clang -O3
+vectoriser/optimiser la boucle. Banc `mot_de_passe` (N = 100 M) :
+Rose AOT LLVM ~39-43 ms vs Rust (splitmix64) ~36-55 ms → parité
+réelle, voire légèrement devant selon la charge. Le routage via clang
+ne suffisait plus ; l'inlining est ce qui fait la différence. MLIR
+reste conditionnel à un gain ≥ 10 % au banc (non atteint pour l'instant).
+
 ### M4 — Auto-hébergement
 Écrire le compilateur **en Rose** (`rose/compilateur.rose` : lexeur,
 analyseur, vérificateur, émission RIR). Protocole de bootstrap en
