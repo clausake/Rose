@@ -1,3 +1,6 @@
+
+
+
 # Architecture — de cinq moteurs à l'auto-hébergement
 
 ## Le principe
@@ -482,4 +485,8 @@ hôte transitoire.
   point fixe, puis est retiré de la livraison.
 - Pas de dépendance d'exécution : le contrat « binaire autonome » reste
   intact (JIT/LLVM compilent, n'ajoutent pas de runtime au programme).
+
+## Aléatoire (M3.2)
+
+Deux familles exposées : pseudo (splitmix64, `graine(n)` / `hasard(n)`, reproductible, rapide) et vrai (`graine_vrai()` / `hasard_vrai(n)`, alias `graine_systeme` / `hasard_systeme`, non déterministe, source OS getrandom ou matériel si `rng_mat()` == 1, alias `rng_materiel`). Le choix se fait à l'exécution selon les capacités du PC (FEAT_RNG / RDRAND / RDSEED).
 

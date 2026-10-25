@@ -267,6 +267,14 @@ static inline void rose_graine(rose_int seed) {
     rose_rng_tirer();
 }
 
+// ── Aléatoire « vrai » : source non déterministe (matériel si dispo, sinon OS).
+// Le choix entre pseudo (rapide, reproductible) et vrai (lent, imprévisible)
+// se fait à l'exécution selon les capacités du PC (FEAT_RNG / RDRAND).
+int rose_rng_materiel(void);          // 1 si RNG matériel présent
+void rose_graine_systeme(void);       // sème g_rng_etat depuis une source vraie
+rose_int rose_hasard_systeme(rose_int n);  // entier uniforme dans [0, n)
+rose_int rose_hasard_vrai(rose_int n);     // alias de hasard_systeme (API Rose)
+
 // Tampons d'octets.
 rose_tampon rose_tampon_new(size_t n);
 rose_tampon rose_octets(const char *s);
@@ -516,6 +524,8 @@ inline const char *rose_argument(const rose_ent &i) {
 inline void rose_graine(const rose_ent &s) {
     rose_graine((rose_int)(s.gros() ? (int64_t)(unsigned long)mpz_get_ui(s.gd().get_mpz_t()) : s.petit()));
 }
+rose_ent rose_hasard_systeme(const rose_ent &n);
+rose_ent rose_hasard_vrai(const rose_ent &n);
 inline void rose_afficher_int(const rose_ent &v) {
     if (!v.gros()) { printf("%lld\n", (long long)v.petit()); return; }
     gmp_printf("%Zd\n", v.gd().get_mpz_t());

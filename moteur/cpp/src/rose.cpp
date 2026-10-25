@@ -33,6 +33,8 @@
 #include <unordered_map>
 #ifndef _WIN32
 #include <unistd.h>
+#include <sys/random.h>
+
 #endif
 #include <utility>
 #include <vector>
@@ -1166,7 +1168,13 @@ static const EntreeStd STDLIB[] = {
     {"fraction", {"entier", "entier"}, "rationnel"},
     /* aléatoire reproductible et tampons d'octets */
     {"graine", {"entier"}, "vide"},
+    {"graine_systeme", {}, "vide"},
+    {"graine_vrai", {}, "vide"},
     {"hasard", {"entier"}, "entier"},
+    {"hasard_systeme", {"entier"}, "entier"},
+    {"hasard_vrai", {"entier"}, "entier"},
+    {"rng_materiel", {}, "entier"},
+    {"rng_mat", {}, "entier"},
     {"tampon", {"entier"}, "tampon"},
     {"octets", {"chaine"}, "tampon"},
     {"tampon_case", {"tampon", "entier"}, "entier"},
@@ -2243,6 +2251,37 @@ static uint64_t rng_tirer() {
     return z ^ (z >> 31);
 }
 
+static int rose_rng_materiel_interne(void) {
+    static int cached = -1;
+    if (cached >= 0) return cached;
+    cached = 0;
+    std::ifstream f("/proc/cpuinfo");
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.rfind("Features", 0) == 0 || line.rfind("flags", 0) == 0) {
+            std::istringstream ss(line);
+            std::string tok; ss >> tok;
+            while (ss >> tok) {
+                if (tok == "rng" || tok == "rdrand" || tok == "rdseed") { cached = 1; break; }
+            }
+        }
+        if (cached) break;
+    }
+    return cached;
+}
+
+static uint64_t rose_lire_octets_systeme_interne(void) {
+    uint64_t v = 0;
+    ssize_t got = getrandom(&v, sizeof v, 0);
+    if (got != (ssize_t)sizeof v) {
+        v = (uint64_t)getpid() * 0x9E3779B97F4A7C15ULL
+          ^ (uint64_t)(uintptr_t)&v
+          ^ (uint64_t)std::chrono::steady_clock::now().time_since_epoch().count();
+    }
+    return v;
+}
+
+
 /* ══════════ temps() / duree() — chronomètre monotone et format adaptatif ══════════
    SPEC (identique dans les cinq moteurs, v3.13) : temps() renvoie les
    nanosecondes monotones écoulées depuis le démarrage du moteur. duree(n)
@@ -2385,6 +2424,15 @@ static Valeur stdlib(const std::string &nom, std::vector<Valeur> &a, int ligne) 
             rng_tirer();   // casse la corrélation directe avec la graine
             return Valeur::vide();
         }
+        if (nom == "graine_systeme" || nom == "graine_vrai") {
+            g_rng_etat = rose_lire_octets_systeme_interne();
+            rng_tirer();
+            return Valeur::vide();
+        }
+        if (nom == "rng_materiel" || nom == "rng_mat") {
+            return Valeur::de_z(mpz_class(rose_rng_materiel_interne()));
+        }
+
         if (nom == "hasard") {
             mpz_class n = vers_z(a[0]);
             if (mpz_sgn(n.get_mpz_t()) <= 0) erreur_runtime("hasard : bornage positif attendu");
@@ -2403,6 +2451,25 @@ static Valeur stdlib(const std::string &nom, std::vector<Valeur> &a, int ligne) 
             mpz_mod(rr.get_mpz_t(), rr.get_mpz_t(), n.get_mpz_t());
             return Valeur::de_z(rr);
         }
+        if (nom == "hasard_systeme" || nom == "hasard_vrai") {
+            mpz_class n = vers_z(a[0]);
+            if (mpz_sgn(n.get_mpz_t()) <= 0) erreur_runtime("hasard : bornage positif attendu");
+            // tirage vrai via getrandom
+            uint64_t x = rose_lire_octets_systeme_interne();
+            if (mpz_fits_ulong_p(n.get_mpz_t())) {
+                unsigned long nn = mpz_get_ui(n.get_mpz_t());
+                // réduction de Lemire
+                unsigned long r = (unsigned long)((__uint128_t)x * nn >> 64);
+                return Valeur::de_z(mpz_class(r));
+            }
+            mpz_class rr;
+            mpz_set_ui(rr.get_mpz_t(), (unsigned long)(x >> 32));
+            mpz_mul_2exp(rr.get_mpz_t(), rr.get_mpz_t(), 32);
+            mpz_add_ui(rr.get_mpz_t(), rr.get_mpz_t(), (unsigned long)(x & 0xFFFFFFFFu));
+            mpz_mod(rr.get_mpz_t(), rr.get_mpz_t(), n.get_mpz_t());
+            return Valeur::de_z(rr);
+        }
+
         if (nom == "tampon") {
             mpz_class n = vers_z(a[0]);
             if (mpz_sgn(n.get_mpz_t()) < 0 || !mpz_fits_ulong_p(n.get_mpz_t()))

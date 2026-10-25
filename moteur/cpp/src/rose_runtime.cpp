@@ -13,6 +13,10 @@ uint64_t g_rng_etat = (uint64_t)getpid() * 0x9E3779B97F4A7C15ULL
 #include <unistd.h>
 #include <cmath>
 #include <fstream>
+#include <sys/random.h>
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+
 #include <sstream>
 #include <cstring>
 
@@ -891,3 +895,90 @@ rose_str rose_texte_q_ab(const rose_qd &q_in) {   // miroir chaine_de(T_RATIONNE
         return q.get_num().get_str();
     return q.get_num().get_str() + "/" + q.get_den().get_str();
 }
+
+// ── Aléatoire « vrai » : source non déterministe ──────────────────────────
+static uint64_t rose_lire_octets_systeme(void) {
+    uint64_t v = 0;
+    // Matériel d'abord si disponible.
+    if (rose_rng_materiel()) {
+#if defined(__aarch64__)
+        unsigned long r = 0;
+        // RNDR (FEAT_RNG) : mrs ... ; NZCV indique l'échec.
+        __asm__ volatile("mrs %0, s3_3_c2_c4_0" : "=r"(r));
+        v = (uint64_t)r;
+#endif
+    }
+    if (v == 0) {
+        ssize_t got = getrandom(&v, sizeof v, 0);
+        if (got != (ssize_t)sizeof v) {
+            // Repli : mélange pid + adresse + horloge.
+            v = (uint64_t)getpid() * 0x9E3779B97F4A7C15ULL
+              ^ (uint64_t)(uintptr_t)&v
+              ^ (uint64_t)std::chrono::steady_clock::now().time_since_epoch().count();
+        }
+    }
+    return v;
+}
+
+int rose_rng_materiel(void) {
+    static int cached = -1;
+    if (cached >= 0) return cached;
+    cached = 0;
+    std::ifstream f("/proc/cpuinfo");
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.rfind("Features", 0) == 0 || line.rfind("flags", 0) == 0) {
+            std::istringstream ss(line);
+            std::string tok;
+            // saute le nom du champ
+            ss >> tok;
+            while (ss >> tok) {
+                if (tok == "rng" || tok == "rdrand" || tok == "rdseed") { cached = 1; break; }
+            }
+        }
+        if (cached) break;
+    }
+    return cached;
+}
+
+void rose_graine_systeme(void) {
+    g_rng_etat = rose_lire_octets_systeme();
+    rose_rng_tirer();
+}
+
+rose_int rose_hasard_systeme(rose_int n) {
+    if (n <= 0) return 0;
+    // Tirage non biaisé (Lemire) sur 64 bits.
+    uint64_t x = rose_lire_octets_systeme();
+    // Pour n <= 2^63, réduction 128-bit.
+    __uint128_t m = (__uint128_t)x * (unsigned long long)n;
+    uint64_t l = (uint64_t)m;
+    if (l < (uint64_t)n) {
+        uint64_t t = (-(uint64_t)n) % (uint64_t)n;
+        while (l < t) { x = rose_lire_octets_systeme(); m = (__uint128_t)x * (unsigned long long)n; l = (uint64_t)m; }
+    }
+    return (rose_int)((m >> 64));
+}
+
+rose_int rose_hasard_vrai(rose_int n) { return rose_hasard_systeme(n); }
+
+rose_ent rose_hasard_systeme(const rose_ent &n) {
+    if (!n.gros()) {
+        int64_t nn = n.petit();
+        if (nn <= 0) rose_erreur("hasard : bornage positif attendu");
+        uint64_t x = rose_lire_octets_systeme();
+        if ((nn & (nn - 1)) == 0) return rose_ent((int64_t)(x & (uint64_t)(nn - 1)));
+        return rose_ent((int64_t)((__uint128_t)x * (uint64_t)nn >> 64));
+    }
+    if (mpz_sgn(n.gd().get_mpz_t()) <= 0) rose_erreur("hasard : bornage positif attendu");
+    uint64_t x = rose_lire_octets_systeme();
+    mpz_class rr;
+    mpz_set_ui(rr.get_mpz_t(), (unsigned long)(x >> 32));
+    mpz_mul_2exp(rr.get_mpz_t(), rr.get_mpz_t(), 32);
+    mpz_add_ui(rr.get_mpz_t(), rr.get_mpz_t(), (unsigned long)(x & 0xFFFFFFFFu));
+    mpz_mod(rr.get_mpz_t(), rr.get_mpz_t(), n.gd().get_mpz_t());
+    return rose_ent(rr);
+}
+rose_ent rose_hasard_vrai(const rose_ent &n) { return rose_hasard_systeme(n); }
+
+

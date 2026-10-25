@@ -512,7 +512,8 @@ std::string transpiler_rir(const RirModule &mod) {
                         else if (name == "fibonacci" || name == "factorielle" || name == "puissance") ty = RirGd;
                         else if (name == "millisecondes" || name == "nb_arguments" || name == "entier" || name == "tampon_case" ||
                                  name == "nb_chiffres" || name == "compter_premiers" ||
-                                 name == "pgcd" || name == "ppcm" || name == "hasard" || name == "ordre" || name == "temps") ty = RirZ;
+                                 name == "pgcd" || name == "ppcm" || name == "hasard" || name == "hasard_systeme" || name == "hasard_vrai" ||
+                                 name == "rng_materiel" || name == "rng_mat" || name == "ordre" || name == "temps") ty = RirZ;
                         else if (name == "argument" || name == "chaine" || name == "nombre_pi" ||
                                   name == "lire_texte" || name == "sous_chaine" || name == "caractere" || name == "duree") ty = RirS;
                         else if (name == "partie_entiere") ty = RirZ;
@@ -993,6 +994,12 @@ std::string transpiler_rir(const RirModule &mod) {
                         std::string arg = L(instr.args[1]);
                         out << "    rose_graine(" << arg << ");\n";
                     }
+                    else if (name == "graine_systeme" || name == "graine_vrai") {
+                        out << "    rose_graine_systeme();\n";
+                    }
+                    else if (name == "rng_materiel" || name == "rng_mat") {
+                        out << "    " << sanitize(instr.dest) << " = rose_rng_materiel();\n";
+                    }
                     else if (name == "remplir_hasard") {
                         std::string a0 = L(instr.args[1]);
                         std::string a1 = L(instr.args[2]);
@@ -1104,6 +1111,10 @@ std::string transpiler_rir(const RirModule &mod) {
                     else if (name == "hasard") {
                         std::string a0 = L(instr.args[1]);
                         out << "    " << sanitize(instr.dest) << " = rose_hasard(" << a0 << ");\n";
+                    }
+                    else if (name == "hasard_systeme" || name == "hasard_vrai") {
+                        std::string a0 = L(instr.args[1]);
+                        out << "    " << sanitize(instr.dest) << " = rose_hasard_systeme(" << a0 << ");\n";
                     }
                     else if (name == "abs") {
                         std::string a0 = L(instr.args[1]);
